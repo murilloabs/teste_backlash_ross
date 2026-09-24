@@ -1179,112 +1179,112 @@ class Backlash:
                                                        
         return results
 
-    def run_linear_baseline(self, unb_node, unb_magnitude, unb_phase, add_force=None, 
-                            sigma=1e4, smooth_operator=True, **kwargs): 
+    # def run_linear_baseline(self, unb_node, unb_magnitude, unb_phase, add_force=None, 
+    #                         sigma=1e4, smooth_operator=True, **kwargs): 
         
-        """
-        Executa a simulação linear em DOIS PASSOS (Pseudo-Acoplamento Iterativo):
-        1. Roda com desbalanceamento puro para encontrar a órbita linear.
-        2. Extrai a força exata do engrenamento para essa órbita via Numba.
-        3. Roda novamente o ROSS aplicando o desbalanceamento + força de engrenamento.
-        """
-        import time
-        import numpy as np
-        from scipy.integrate import cumulative_trapezoid # <-- IMPORTAÇÃO NECESSÁRIA
+    #     """
+    #     Executa a simulação linear em DOIS PASSOS (Pseudo-Acoplamento Iterativo):
+    #     1. Roda com desbalanceamento puro para encontrar a órbita linear.
+    #     2. Extrai a força exata do engrenamento para essa órbita via Numba.
+    #     3. Roda novamente o ROSS aplicando o desbalanceamento + força de engrenamento.
+    #     """
+    #     import time
+    #     import numpy as np
+    #     from scipy.integrate import cumulative_trapezoid # <-- IMPORTAÇÃO NECESSÁRIA
 
-        start_time_total = time.perf_counter() # <-- INICIA O CRONÔMETRO AQUI
+    #     start_time_total = time.perf_counter() # <-- INICIA O CRONÔMETRO AQUI
 
-        self.sigma = sigma
-        self.smooth_operator = smooth_operator
+    #     self.sigma = sigma
+    #     self.smooth_operator = smooth_operator
 
-        ramp_fraction = kwargs.get('ramp_fraction', 0.0)
-        speed_array = self.generate_speed_ramp(ramp_fraction=ramp_fraction)
+    #     ramp_fraction = kwargs.get('ramp_fraction', 0.0)
+    #     speed_array = self.generate_speed_ramp(ramp_fraction=ramp_fraction)
 
-        theta_array = cumulative_trapezoid(speed_array, self.time, initial=0.0)
+    #     theta_array = cumulative_trapezoid(speed_array, self.time, initial=0.0)
         
-        z1 = self.gears[0].n_teeth
-        error_array = self.error_amp * np.sin(z1 * theta_array)
-        error_dot_array = self.error_amp * (z1 * speed_array) * np.cos(z1 * theta_array)
+    #     z1 = self.gears[0].n_teeth
+    #     error_array = self.error_amp * np.sin(z1 * theta_array)
+    #     error_dot_array = self.error_amp * (z1 * speed_array) * np.cos(z1 * theta_array)
 
-        unb_force, _, _, _ = self.multirotor.unbalance_force_over_time(
-            unb_node, unb_magnitude, unb_phase, speed_array, self.time, return_all=True)
+    #     unb_force, _, _, _ = self.multirotor.unbalance_force_over_time(
+    #         unb_node, unb_magnitude, unb_phase, speed_array, self.time, return_all=True)
         
-        F_unb = unb_force.T
-        if add_force is not None: 
-            F_unb += add_force
+    #     F_unb = unb_force.T
+    #     if add_force is not None: 
+    #         F_unb += add_force
 
-        print(f"==================================================")
-        print(f"Iniciando simulação BASELINE LINEAR (2 Passos Iterativos)")
-        print(f"==================================================")
+    #     print(f"==================================================")
+    #     print(f"Iniciando simulação BASELINE LINEAR (2 Passos Iterativos)")
+    #     print(f"==================================================")
 
-        print("-> Passo 1/2: Simulação ROSS (Apenas Desbalanceamento)...")
-        t1 = time.time()
-        results_step1 = self.multirotor.run_time_response(
-            speed=speed_array, F=F_unb, t=self.time, method="default", **kwargs
-        )
-        print(f"   Tempo decorrido Passo 1: {time.time()-t1:.2e} s")
+    #     print("-> Passo 1/2: Simulação ROSS (Apenas Desbalanceamento)...")
+    #     t1 = time.time()
+    #     results_step1 = self.multirotor.run_time_response(
+    #         speed=speed_array, F=F_unb, t=self.time, method="default", **kwargs
+    #     )
+    #     print(f"   Tempo decorrido Passo 1: {time.time()-t1:.2e} s")
 
-        ndof_total = self.multirotor.ndof
-        yout_raw_1 = np.ascontiguousarray(results_step1.yout)
-        dt = self.time[1] - self.time[0]
+    #     ndof_total = self.multirotor.ndof
+    #     yout_raw_1 = np.ascontiguousarray(results_step1.yout)
+    #     dt = self.time[1] - self.time[0]
 
-        if yout_raw_1.shape[1] == 2 * ndof_total:
-            yout_1 = np.ascontiguousarray(yout_raw_1[:, :ndof_total])
-            ydot_1 = np.ascontiguousarray(yout_raw_1[:, ndof_total:])
-        else:
-            yout_1 = yout_raw_1
-            ydot_1 = np.ascontiguousarray(np.gradient(yout_raw_1, dt, axis=0))
+    #     if yout_raw_1.shape[1] == 2 * ndof_total:
+    #         yout_1 = np.ascontiguousarray(yout_raw_1[:, :ndof_total])
+    #         ydot_1 = np.ascontiguousarray(yout_raw_1[:, ndof_total:])
+    #     else:
+    #         yout_1 = yout_raw_1
+    #         ydot_1 = np.ascontiguousarray(np.gradient(yout_raw_1, dt, axis=0))
 
-        gear_nodes = np.array([e.n for e in self.gears], dtype=np.int64)
-        number_of_dof = self.multirotor.number_dof
-        d0 = (self.gears[0].pitch_diameter + self.gears[1].pitch_diameter) / 2
-        R1, R2 = self.gears[0].base_radius, self.gears[1].base_radius
-        alfa0 = self.gears[0].pr_angle
-        orientation_angle = self.multirotor.orientation_angle
-        nominal_cr = self.multirotor.mesh.contact_ratio
-        Ra1, Ra2 = self.gears[0].radii_dict["addendum"], self.gears[1].radii_dict["addendum"]
-        module = self.gears[0].module
-        helix_angle = self.multirotor.mesh.helix_angle
+    #     gear_nodes = np.array([e.n for e in self.gears], dtype=np.int64)
+    #     number_of_dof = self.multirotor.number_dof
+    #     d0 = (self.gears[0].pitch_diameter + self.gears[1].pitch_diameter) / 2
+    #     R1, R2 = self.gears[0].base_radius, self.gears[1].base_radius
+    #     alfa0 = self.gears[0].pr_angle
+    #     orientation_angle = self.multirotor.orientation_angle
+    #     nominal_cr = self.multirotor.mesh.contact_ratio
+    #     Ra1, Ra2 = self.gears[0].radii_dict["addendum"], self.gears[1].radii_dict["addendum"]
+    #     module = self.gears[0].module
+    #     helix_angle = self.multirotor.mesh.helix_angle
 
-        if not hasattr(self, 'theta_arr'):
-            self.theta_arr, self.cr_arr, self.K_table = self._get_or_create_stiffness_table()
+    #     if not hasattr(self, 'theta_arr'):
+    #         self.theta_arr, self.cr_arr, self.K_table = self._get_or_create_stiffness_table()
 
-        print("-> Calculando Força de Engrenamento Teórica via Numba...")
-        start_time_extract = time.time() 
+    #     print("-> Calculando Força de Engrenamento Teórica via Numba...")
+    #     start_time_extract = time.time() 
 
-        logs_matrix_1, F_mesh_global = extract_backlash_logs_from_trajectory(
-            yout_1, ydot_1, self.time, gear_nodes, number_of_dof, ndof_total,
-            d0, orientation_angle, R1, R2, alfa0, helix_angle, self.b0, 
-            self.compute_contact_ratio, nominal_cr, 
-            Ra1, Ra2, module, self.sigma, self.smooth_operator, self.theta_arr, self.cr_arr, self.K_table,
-            self.M_eq, self.mesh_damping_ratio, start_time_extract,
-            theta_array, error_array, error_dot_array # <-- OS VETORES AGORA EXISTEM E SÃO PASSADOS
-        )
+    #     logs_matrix_1, F_mesh_global = extract_backlash_logs_from_trajectory(
+    #         yout_1, ydot_1, self.time, gear_nodes, number_of_dof, ndof_total,
+    #         d0, orientation_angle, R1, R2, alfa0, helix_angle, self.b0, 
+    #         self.compute_contact_ratio, nominal_cr, 
+    #         Ra1, Ra2, module, self.sigma, self.smooth_operator, self.theta_arr, self.cr_arr, self.K_table,
+    #         self.M_eq, self.mesh_damping_ratio, start_time_extract,
+    #         theta_array, error_array, error_dot_array # <-- OS VETORES AGORA EXISTEM E SÃO PASSADOS
+    #     )
 
-        F_total = F_unb + F_mesh_global
+    #     F_total = F_unb + F_mesh_global
 
-        print("-> Passo 2/2: Simulação ROSS (Desbalanceamento + Malha)...")
-        t2 = time.time()
-        results_final = self.multirotor.run_time_response(
-            speed=speed_array, F=F_total, t=self.time, method="default", **kwargs
-        )
-        print(f"   Tempo decorrido Passo 2: {time.time()-t2:.2e} s")
+    #     print("-> Passo 2/2: Simulação ROSS (Desbalanceamento + Malha)...")
+    #     t2 = time.time()
+    #     results_final = self.multirotor.run_time_response(
+    #         speed=speed_array, F=F_total, t=self.time, method="default", **kwargs
+    #     )
+    #     print(f"   Tempo decorrido Passo 2: {time.time()-t2:.2e} s")
 
-        self.linear_backlash_results = {}
-        keys = ["x1", "y1", "x2", "y2", "t1", "t2", "d", "beta", "alfa",
-                "contact_ratio", "delta", "bt", "f", "K_time", "Fm"]
+    #     self.linear_backlash_results = {}
+    #     keys = ["x1", "y1", "x2", "y2", "t1", "t2", "d", "beta", "alfa",
+    #             "contact_ratio", "delta", "bt", "f", "K_time", "Fm"]
         
-        for idx, key in enumerate(keys):
-            self.linear_backlash_results[key] = logs_matrix_1[self.n_cut:, idx]
+    #     for idx, key in enumerate(keys):
+    #         self.linear_backlash_results[key] = logs_matrix_1[self.n_cut:, idx]
 
-        results_final.yout = results_final.yout[self.n_cut:, :ndof_total] 
-        results_final.t = results_final.t[self.n_cut:]
+    #     results_final.yout = results_final.yout[self.n_cut:, :ndof_total] 
+    #     results_final.t = results_final.t[self.n_cut:]
         
-        self.linear_time_response = results_final
-        self.exec_time_linear = time.perf_counter() - start_time_total
+    #     self.linear_time_response = results_final
+    #     self.exec_time_linear = time.perf_counter() - start_time_total
         
-        print("Baseline linear recalculado e acoplado com sucesso!")
-        return results_final
+    #     print("Baseline linear recalculado e acoplado com sucesso!")
+    #     return results_final
 
 
     def save_results(self, unb_node, unb_magnitude, unb_phase, integration_method, output_dir="resultados_backlash", compress_csv=False, add_force=None):

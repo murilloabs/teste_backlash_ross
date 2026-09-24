@@ -40,6 +40,7 @@ def build_multirotor():
 
     multirotor = rs.MultiRotor(
         driving_rotor=rotor1, driven_rotor=rotor2, coupled_nodes=(0,0),
+        gear_mesh_stiffness=0,
         update_mesh_stiffness=True,
         square_varying_stiffness={"enable": True, "amplitude_ratio": 0.275},
         orientation_angle=0.0, position="above"
@@ -79,7 +80,7 @@ def varredura_bifurcacao(rpm_min=1000, rpm_max=8000, num_steps=300):
         # 1. Instancia o Backlash para a velocidade atual
         # Reduzimos num_points_cicle para 2000 para a varredura ficar rápida
         backlash = Backlash(
-            multirotor, speed_rad_s, b0=b0, error_amp=err_amp, gear_mesh_stiffness=None,
+            multirotor, speed_rad_s, b0=b0, error_amp=err_amp, gear_mesh_stiffness=0,
             num_points_cicle=6000, n_cicles=n_cicles_sim, cut_cicles=cut_cicles_sim,
             use_multirotor_coupling_stiffness=False, compute_contact_ratio=True, mesh_damping_ratio=0.07
         )
