@@ -1,102 +1,138 @@
-"""Varredura de bifurcação usando a variante Backlash-K0."""
-
-from copy import deepcopy
-from pathlib import Path
-
-import matplotlib.pyplot as plt
+import sys
+import os  # <-- ADICIONADO PARA LIDAR COM OS DIRETÓRIOS
 import numpy as np
+import copy
+import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 import ross as rs
 from tqdm import tqdm
-import plotly.graph_objects as go
-
 from backlash_ross import Backlash
 
-
-BASE_DIR = Path(__file__).resolve().parent
-
-
 def build_multirotor():
+    """Constrói o modelo físico do rotor (Geometria não muda com a velocidade)"""
     z1 = z2 = 20
-    module = 0.01
-    pressure_angle = np.radians(20.0)
+    m_n = 0.01                             
+    pd_gear = m_n * z1                   
+    alpha_0_rad = np.radians(20.0)
     width = 0.030
-    mass = 6.57
-    inertia = 0.0365
+    m_gear = 6.57                        
+    J_gear = 0.0365                      
+    k_brg = 1.0e8                        
+    c_brg = 512.64                      
+    
     steel = rs.Material(name="Steel", rho=7850, E=2e11, Poisson=0.3)
-    stiff_steel = rs.Material(name="Steel_Stiff", rho=0.01, E=1e15, Poisson=0.3)
-    shaft = [rs.ShaftElement(L=0.0001, idl=0.0, odl=0.0001, material=stiff_steel, n=0)]
-    bearing = rs.BearingElement(n=0, kxx=1e8, kyy=1e8, cxx=512.64, cyy=512.64)
-    pitch_diameter = module * z1
-    bore = np.sqrt(pitch_diameter**2 - 4 * mass / (np.pi * width * steel.rho))
-    gear = rs.GearElementTVMS(
-        n=0, material=steel, width=width, bore_diameter=bore,
-        module=module, n_teeth=z1, pr_angle=pressure_angle, helix_angle=0,
-        addendum_coeff=1, tip_clearance_coeff=0.25,
+    steel_stiff = rs.Material(name="Steel_Stiff", rho=0.01, E=1e15, Poisson=0.3)
+    
+    shaft1 = [rs.ShaftElement(L=0.0001, idl=0.0, odl=0.0001, material=steel_stiff, n=0)]
+    brg1 = rs.BearingElement(n=0, kxx=k_brg, kyy=k_brg, cxx=c_brg, cyy=c_brg)
+    
+    gear1 = rs.GearElementTVMS(
+        n=0, material=steel, width=width, bore_diameter=np.sqrt(pd_gear**2-(4*m_gear)/(np.pi*width*steel.rho)), 
+        module=m_n, n_teeth=z1, pr_angle=alpha_0_rad, helix_angle=0,
+        addendum_coeff=1, tip_clearance_coeff=0.25
     )
-    gear.m, gear.Ip, gear.Id = mass, inertia, 0.0001 * inertia / 2
-    rotor = rs.Rotor(shaft_elements=shaft, disk_elements=[gear], bearing_elements=[bearing])
-    return rs.MultiRotor(
-        driving_rotor=rotor,
-        driven_rotor=deepcopy(rotor),
-        coupled_nodes=(0, 0),
+    gear1.m = m_gear
+    gear1.Ip = J_gear
+    gear1.Id = 0.0001*J_gear / 2
+
+    rotor1 = rs.Rotor(shaft_elements=shaft1, disk_elements=[gear1], bearing_elements=[brg1])
+    rotor2 = copy.deepcopy(rotor1)
+
+    multirotor = rs.MultiRotor(
+        driving_rotor=rotor1, driven_rotor=rotor2, coupled_nodes=(0,0),
         update_mesh_stiffness=True,
         square_varying_stiffness={"enable": True, "amplitude_ratio": 0.275},
-        orientation_angle=0.0,
-        position="above",
+        orientation_angle=0.0, position="above"
     )
-
-
-def run_at_speed(multirotor, speed_rpm, n_cicles=20, cut_cicles=10):
-    speed = speed_rpm * np.pi / 30.0
-    backlash = Backlash(
-        multirotor, speed, b0=50e-6, error_amp=20e-6,
-        gear_mesh_stiffness=None, num_points_cicle=1500,
-        n_cicles=n_cicles, cut_cicles=cut_cicles,
-        use_multirotor_coupling_stiffness=False,
-        compute_contact_ratio=True, mesh_damping_ratio=0.07,
-    )
-    backlash._get_or_create_stiffness_table(
-        square_varying_stiffness=True, kd=6.5072e8, ks=3.6228e8, n_poits=1000
-    )
-    gears = [int(e.n) for e in multirotor.disk_elements if isinstance(e, rs.GearElement)]
-    force = np.zeros((len(backlash.time), multirotor.ndof))
-    force[:, gears[0] * multirotor.number_dof + 5] = 300 + 100 * np.sin(speed * backlash.time)
-    driven_speed = multirotor.mesh.gear_ratio * speed
-    force[:, gears[1] * multirotor.number_dof + 5] = 300 + 100 * np.sin(driven_speed * backlash.time)
-    backlash.run_dynamic_backlash(
-        gears, [0.0, 0.0], [0.0, 0.0], integration_method="internal_newmark",
-        gamma=0.5, beta=0.25, tol=1e-6, sigma=1e5,
-        smooth_operator=False, add_force=force,
-    )
-    idx_x1 = gears[0] * multirotor.number_dof
-    return backlash, idx_x1
-
+    return multirotor
 
 def varredura_bifurcacao(rpm_min=1000, rpm_max=8000, num_steps=300):
-    model = build_multirotor()
-    speeds, displacements = [], []
-    for rpm in tqdm(np.linspace(rpm_min, rpm_max, num_steps), desc="Bifurcação K0"):
-        backlash, idx_x1 = run_at_speed(model, rpm)
-        mesh_period = 2 * np.pi / (rpm * np.pi / 30 * 20)
-        times = backlash.time
-        samples = np.interp(
-            np.arange(times[0], times[-1], mesh_period),
-            times, backlash.time_response.yout[:, idx_x1],
+    multirotor = build_multirotor()
+    unb_node = [int(e.n) for e in multirotor.disk_elements if isinstance(e, rs.GearElement)]
+    
+    # Parâmetros fixos do seu modelo
+    b0 = 50e-6                           
+    err_amp = 20e-6 
+    T10, T1a = 300.0, 100.0
+    T20, T2a = 300.0, 100.0
+    z1 = 20
+
+    ks = 3.6228e8                        # Rigidez contato simples (N/m)
+    kd = 6.5072e8                        # Rigidez contato duplo (N/m)   
+
+    # Configuração de convergência da bifurcação
+    # 150 ciclos totais, cortamos os primeiros 100. Sobram 50 ciclos limpos de regime permanente.
+    n_cicles_sim = 20 #300 
+    cut_cicles_sim = 10 #250 
+
+    bif_speed = []
+    bif_disp = []
+
+    speeds_rpm = np.linspace(rpm_min, rpm_max, num_steps)
+
+    # 1. INICIALIZA OS ESTADOS A FRIO PARA A PRIMEIRA RPM
+    estado_y, estado_ydot, estado_y2dot = None, None, None
+    
+    for speed_rpm in tqdm(speeds_rpm, desc="Gerando Diagrama"):
+        speed_rad_s = speed_rpm * np.pi / 30
+        
+        # 1. Instancia o Backlash para a velocidade atual
+        # Reduzimos num_points_cicle para 2000 para a varredura ficar rápida
+        backlash = Backlash(
+            multirotor, speed_rad_s, b0=b0, error_amp=err_amp, gear_mesh_stiffness=None,
+            num_points_cicle=3000, n_cicles=n_cicles_sim, cut_cicles=cut_cicles_sim,
+            use_multirotor_coupling_stiffness=False, compute_contact_ratio=True, mesh_damping_ratio=0.07
         )
-        speeds.extend([rpm / 1000] * len(samples))
-        displacements.extend(samples * 1e6)
-    return np.asarray(speeds), np.asarray(displacements)
 
+        _, _, _ = backlash._get_or_create_stiffness_table(square_varying_stiffness=True, kd=kd, ks=ks, n_poits = 1000)
 
-# def plotar_diagrama(speed, displacement, output="diagrama_bifurcacao_K0"):
-#     output = BASE_DIR / output
-#     plt.figure(figsize=(10, 6), dpi=200)
-#     plt.scatter(speed, displacement, s=0.5, c="magenta", alpha=0.6)
-#     plt.xlabel("Rotational speed n1 / (kr/min)")
-#     plt.ylabel("Displacement x1 / micrometers")
-#     plt.tight_layout()
-#     plt.savefig(output.with_suffix(".pdf"), bbox_inches="tight")
-#     plt.close()
+        # 2. Recalcula as forças (Torques) baseadas no novo vetor de tempo do backlash
+        w1 = speed_rad_s
+        w2 = multirotor.mesh.gear_ratio * w1
+        F = np.zeros((len(backlash.time), multirotor.ndof))
+        F[:, unb_node[0] * multirotor.number_dof + 5] = T10 + T1a * np.sin(w1 * backlash.time)
+        F[:, unb_node[1] * multirotor.number_dof + 5] = T20 + T2a * np.sin(w2 * backlash.time)
+
+        gamma = 0.5
+        beta = (1/4) * (gamma + 0.5)**2
+
+        # 2. EXECUTA A INTEGRAÇÃO PASSANDO OS ESTADOS ANTERIORES
+        backlash.run_dynamic_backlash(
+            unb_node=unb_node, unb_magnitude=[0.0, 0.0], unb_phase=[0.0, 0.0],
+            integration_method="internal_newmark", gamma=gamma, beta=beta, tol=1e-6,
+            sigma=1e5, smooth_operator=False, add_force=F,
+            ramp_fraction=0.0, # <-- Mantenha 0.0 na bifurcação, pois já estamos usando o Sweep
+            y_init=estado_y, ydot_init=estado_ydot, y2dot_init=estado_y2dot # <-- INJEÇÃO
+        )
+        
+        # 3. CAPTURA OS ESTADOS FINAIS DESTA RPM PARA USAR NA PRÓXIMA!
+        # estado_y, estado_ydot, estado_y2dot = backlash.final_states
+
+        # 4. Amostragem de Poincaré
+        # Frequência de engrenamento (Mesh Frequency)
+        wm = speed_rad_s * z1 
+        Tm = 2 * np.pi / wm
+        
+        # O vetor de tempo do response já vem com os transientes cortados (devido ao cut_cicles)
+        t_final = backlash.time
+        
+        # Cria vetor de instantes espaçados exatamente por Tm
+        t_poincare = np.arange(t_final[0], t_final[-1], Tm)
+        
+        # Extrai o deslocamento x1 (Grau de liberdade 0 do nó unb_node[0])
+        idx_x1 = unb_node[0] * multirotor.number_dof + 0
+        x1_signal = backlash.time_response.yout[:, idx_x1]
+        
+        # Interpola o sinal contínuo para pegar os pontos exatos
+        pts_poincare = np.interp(t_poincare, t_final, x1_signal)
+        
+        # Armazena os dados
+        krpm = speed_rpm / 1000.0
+        for pt in pts_poincare:
+            bif_speed.append(krpm)
+            bif_disp.append(pt * 1e6) # Converte para micrometros para o plot
+
+    return np.array(bif_speed), np.array(bif_disp)
 
 def plotar_diagrama(x_data, y_data, filename_base="diagrama_bifurcacao"):
     """
@@ -180,8 +216,14 @@ def plotar_diagrama(x_data, y_data, filename_base="diagrama_bifurcacao"):
     fig_html.write_html(html_path, include_plotlyjs="cdn") # cdn deixa o arquivo menor
     print(f" -> HTML interativo salvo com sucesso: '{html_path}'\n")
 
-
 if __name__ == "__main__":
-    x, y = varredura_bifurcacao(rpm_min=1000, rpm_max=8000, num_steps=300)
-    np.savez(BASE_DIR / "bifurcation_K0.npz", speed=x, displacement=y)
-    plotar_diagrama(x, y)
+    print("\n Iniciando simulações... Prepare um café ☕")
+    
+    # Ajuste num_steps para a "resolução" desejada. 
+    # Sugestão: comece com 50 para testar se funciona rápido. Depois aumente para 300 para o gráfico final de artigo.
+    velocidades, deslocamentos = varredura_bifurcacao(rpm_min=1000, rpm_max=8000, num_steps=300)
+    
+    print("Finalizado! Gerando gráfico...")
+    plotar_diagrama(velocidades, deslocamentos)
+
+    aa = 1

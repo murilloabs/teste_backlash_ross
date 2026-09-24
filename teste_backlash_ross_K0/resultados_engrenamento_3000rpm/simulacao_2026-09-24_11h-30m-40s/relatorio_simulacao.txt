@@ -1,0 +1,42 @@
+====================================================
+       RELATÓRIO DE SIMULAÇÃO - ROTODINÂMICA        
+====================================================
+Data e Hora           : 24/09/2026 11:30:40
+Diretório de Origem   : c:\Users\M\Desktop\doutorado\teste_backlash_ross\teste_backlash_ross_K0\resultados_engrenamento_3000rpm
+Script de Execução    : validation_paper_01.py
+----------------------------------------------------
+TEMPOS DE PROCESSAMENTO (HH:MM:SS)
+Dinâmica Não-Linear   : 00:01:00.835
+----------------------------------------------------
+PARÂMETROS DE INTEGRAÇÃO E SOLVER
+Método de Integração  : INTERNAL_NEWMARK
+Passo de Tempo (dt)   : 6.67e-06 s
+Frequência de Amostr. : 149999.62 Hz
+Ciclos Simulados      : 133 (Totais) | 0 (Descartados)
+----------------------------------------------------
+CONFIGURAÇÕES DE NÃO-LINEARIDADE (CONTATO E FOLGA)
+Smooth Operator       : False
+Sigma (Suavização)    : 100000.0
+Cálculo de CR Dinâmico: True
+Usa Rigidez do ROSS   : Não (Desativada)
+----------------------------------------------------
+GEOMETRIA DO ENGRENAMENTO E FÍSICA
+Velocidade (Pinhão)   : 314.16 rad/s
+Frequência de Malha   : 1000.00 Hz
+Dentes (Z1 / Z2)      : 20 / 20
+Módulo                : 0.01 m
+Ângulo de Pressão (a0): 20.00 °
+Ângulo de Hélice      : 0.00 °
+Backlash Inicial (b0) : 5.0000e-05 m
+Erro Estático (Amp)   : 2.0000e-05 m
+Razão de Amortecimento: 0.07
+Massa Equivalente (M) : 2.0668 kg
+----------------------------------------------------
+PARÂMETROS DE DESBALANCEAMENTO
+Nós Excitados         : [0, 2]
+Magnitude (kg.m)      : [0.0, 0.0]
+Fase (rad)            : [0.0, 0.0]
+----------------------------------------------------
+Possui Baseline Linear? : Não
+Vetor Add Force Extra?  : Não
+====================================================

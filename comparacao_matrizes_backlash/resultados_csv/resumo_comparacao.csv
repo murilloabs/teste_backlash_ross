@@ -1,0 +1,4 @@
+metodologia,mesh.stiffness,||DeltaK||,||Kmesh_expected||,erro para Kmesh,coupling somado?,coupling removido?
+backlash.py original,518946101.12505233,1047057021.0318065,1047057021.0318062,1.2374694444474089e-06,True,False
+backlash_ross.py K0,518946101.12505233,0.0,1047057021.0318062,1047057021.0318062,False,True
+ROSS nativo,518946101.12505233,0.0,1047057021.0318062,1047057021.0318062,False,True

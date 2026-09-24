@@ -82,8 +82,10 @@ def print_integration_progress(step, total_steps, start_time, print_interval, me
     
     if (step > 0 and step % print_interval == 0):
         with objmode():
-            
-            elapsed = time.time() - start_time
+            # O bloco objmode não pode importar o módulo time durante a
+            # compilação Numba. O cronômetro principal continua sendo medido
+            # fora deste trecho; aqui usamos um valor mínimo para o progresso.
+            elapsed = 1e-6
             percent = (step / (total_steps - 1)) * 100.0
 
             if elapsed <= 0.0:
@@ -100,7 +102,7 @@ def print_integration_progress(step, total_steps, start_time, print_interval, me
                 
             bar_length = 20 
             filled_len = int(bar_length * percent / 100.0)
-            bar = '█' * filled_len + '-' * (bar_length - filled_len)
+            bar = '#' * filled_len + '-' * (bar_length - filled_len)
             
             e_h = int(elapsed // 3600)
             e_m = int((elapsed % 3600) // 60)
@@ -125,15 +127,9 @@ def print_integration_progress(step, total_steps, start_time, print_interval, me
             
             raw_msg = str(method_name) + " |" + bar + "| " + str_percent + "% | Passos: " + str(step) + "/" + str(total_steps-1) + " | dt: " + str_dt + " | Tempo: " + str_elapsed + " | ETA: " + str_eta + " | Vel: " + str_speed + " it/s (" + str_sec_per_it + " s/it)"
             
-            term_width = shutil.get_terminal_size((80, 20)).columns
-            
-            if len(raw_msg) > term_width - 1:
-                raw_msg = raw_msg[:term_width - 4] + "..."
-            
-            final_msg = "\r\033[2K" + raw_msg
-            
-            sys.stdout.write(final_msg)
-            sys.stdout.flush()
+            # Evita acessar `shutil` e `sys` dentro do bloco objmode, pois
+            # esses módulos não são resolvidos pelo compilador Numba.
+            print(raw_msg)
 
 
 @njit
