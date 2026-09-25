@@ -1014,7 +1014,7 @@ class Backlash:
         Ra1, Ra2 = self.gears[0].radii_dict["addendum"], self.gears[1].radii_dict["addendum"]
         module, alfa0 = self.gears[0].module, self.gears[0].pr_angle
         d0 = (self.gears[0].pitch_diameter + self.gears[1].pitch_diameter) / 2
-        orientation_angle = self.multirotor.orientation_angle
+        orientation_angle = self.multirotor.mesh.orientation_angle
         nominal_cr = self.multirotor.mesh.contact_ratio
         
         helix_angle = self.multirotor.mesh.helix_angle
@@ -1080,7 +1080,7 @@ class Backlash:
         d0 = (self.gears[0].pitch_diameter + self.gears[1].pitch_diameter) / 2
         R1, R2 = self.gears[0].base_radius, self.gears[1].base_radius
         alfa0 = self.gears[0].pr_angle
-        orientation_angle = self.multirotor.orientation_angle
+        orientation_angle = self.multirotor.mesh.orientation_angle
         nominal_cr = self.multirotor.mesh.contact_ratio
         Ra1, Ra2 = self.gears[0].radii_dict["addendum"], self.gears[1].radii_dict["addendum"]
         module = self.gears[0].module
@@ -1240,7 +1240,7 @@ class Backlash:
     #     d0 = (self.gears[0].pitch_diameter + self.gears[1].pitch_diameter) / 2
     #     R1, R2 = self.gears[0].base_radius, self.gears[1].base_radius
     #     alfa0 = self.gears[0].pr_angle
-    #     orientation_angle = self.multirotor.orientation_angle
+    #     orientation_angle = self.multirotor.mesh.orientation_angle
     #     nominal_cr = self.multirotor.mesh.contact_ratio
     #     Ra1, Ra2 = self.gears[0].radii_dict["addendum"], self.gears[1].radii_dict["addendum"]
     #     module = self.gears[0].module

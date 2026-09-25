@@ -63,8 +63,8 @@ def varredura_bifurcacao(rpm_min=1000, rpm_max=8000, num_steps=300):
 
     # Configuração de convergência da bifurcação
     # 150 ciclos totais, cortamos os primeiros 100. Sobram 50 ciclos limpos de regime permanente.
-    n_cicles_sim = 30 #300 
-    cut_cicles_sim = 15 #250 
+    n_cicles_sim = 20 #300 
+    cut_cicles_sim = 10 #250 
 
     bif_speed = []
     bif_disp = []
@@ -81,7 +81,7 @@ def varredura_bifurcacao(rpm_min=1000, rpm_max=8000, num_steps=300):
         # Reduzimos num_points_cicle para 2000 para a varredura ficar rápida
         backlash = Backlash(
             multirotor, speed_rad_s, b0=b0, error_amp=err_amp, gear_mesh_stiffness=0,
-            num_points_cicle=6000, n_cicles=n_cicles_sim, cut_cicles=cut_cicles_sim,
+            num_points_cicle=3000, n_cicles=n_cicles_sim, cut_cicles=cut_cicles_sim,
             use_multirotor_coupling_stiffness=False, compute_contact_ratio=True, mesh_damping_ratio=0.07
         )
 
@@ -158,7 +158,7 @@ def plotar_diagrama(x_data, y_data, filename_base="diagrama_bifurcacao"):
     fig, ax = plt.subplots(figsize=(10, 6), dpi=300)
     ax.scatter(x_data, y_data, s=0.5, c='magenta', alpha=0.6, edgecolors='none')
     
-    ax.set_xlim(0, 50)
+    ax.set_xlim(1, 8)
     
     ymin, ymax = np.min(y_data), np.max(y_data)
     margem = (ymax - ymin) * 0.1
@@ -222,7 +222,7 @@ if __name__ == "__main__":
     
     # Ajuste num_steps para a "resolução" desejada. 
     # Sugestão: comece com 50 para testar se funciona rápido. Depois aumente para 300 para o gráfico final de artigo.
-    velocidades, deslocamentos = varredura_bifurcacao(rpm_min=1, rpm_max=50000, num_steps=1000)
+    velocidades, deslocamentos = varredura_bifurcacao(rpm_min=1000, rpm_max=8000, num_steps=300)
     
     print("Finalizado! Gerando gráfico...")
     plotar_diagrama(velocidades, deslocamentos)
